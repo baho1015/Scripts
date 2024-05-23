@@ -1,25 +1,42 @@
-// id: '624e83ab8c3daa3f9d9c6bcc',
-// name: 'icompany',
-// workspaceId: '6221c7831262ac760640b213',
+const apiKey = '';
+const projectName = "icompany";
 const dateStart = '2024-04-15T00:00:00.000Z';
-const dateEnd = '2024-04-17T23:59:59.999Z';
-const apiKey = 'NNN';
+const dateEnd = '2024-04-18T23:59:59.999Z';
 const workspaceId = '6221c7831262ac760640b213';
 const url = `https://reports.api.clockify.me/v1/workspaces/${workspaceId}/reports/detailed`;
 const body = { 
-    'dateRangeEnd': dateEnd,
-    'dateRangeStart': dateStart,
-    'detailedFilter': {}
+    "dateRangeEnd": dateEnd,
+    "dateRangeStart": dateStart,
+    "detailedFilter": {},
     };
-const response = await fetch(url,{
+const options = {
     method: 'post',
     headers: {
         'x-api-key': apiKey,
         'content-type': 'application/json'
     },
     body: JSON.stringify(body)
-});
-const data = await response.json();
+}
 
-
-console.log(data);
+fetch(url, options)
+    .then(response => response.json())
+    .then(data => {
+        let result = []; 
+        for (let i in data["timeentries"]){
+            if (data["timeentries"][i]["projectName"] == projectName) {
+                result.push ({
+                "name" : data["timeentries"][i]["userName"],
+                "description" : data["timeentries"][i]["description"],
+                "time" : (data["timeentries"][i]["timeInterval"]["duration"]),
+                })
+            }
+        }
+        console.log(result);
+        console.log("Получено записей: "+result.length)
+    })
+    .catch(function (error) {
+        console.log(error);
+    })
+    .finally(function () {
+        // always executed
+    });
