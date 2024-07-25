@@ -2,13 +2,17 @@ import 'dotenv/config'
 import { Octokit } from '@octokit/rest'
 const octokit = new Octokit({auth: process.env.GITHUB_TOKEN})
 const issue_number = 1305
-const dateStart="2024-05-30T00:00:00.000Z"
-const dateEnd="2024-05-30T23:59:59.000Z"
+const dateStart = "2024-05-01T00:00:00.000Z"
+const dateEnd = "2024-05-31T23:59:59.999Z"
+const email = `tsumugi_kotobuki@inbox.ru`
 
-console.log( await mergeIssues(issue_number, dateStart, dateEnd) )
+console.log(await mergeIssues(issue_number, dateStart, dateEnd, email))
 
-async function mergeIssues(issue_number, dateStart, dateEnd){
-    const clock = await getClock(dateStart, dateEnd)
+async function mergeIssues(issue_number, dateStart, dateEnd, email){
+    const profileInfo = await getProfile(email)
+    let profileIds = []
+    profileIds.push(profileInfo["id"])
+    const clock = await getClock(dateStart, dateEnd, profileIds)
     const issue = await getIssue(issue_number)
 
     let result = []
@@ -19,13 +23,15 @@ async function mergeIssues(issue_number, dateStart, dateEnd){
             ids.push(issue["ids"][i])
         }
     }
+
     for (const i in ids) {
         if (clock[ids[i]]) {
             for (const j in clock[ids[i]]) {
                 const time = clock[ids[i]][j].time / 3600
                 result.push({
                     'name': clock[ids[i]][j].name,
-                    'time': parseFloat(time.toFixed(1))
+                    'time': parseFloat(time.toFixed(1)),
+                    'issue': ids[i]
                 })
             }
         }
@@ -34,12 +40,15 @@ async function mergeIssues(issue_number, dateStart, dateEnd){
     return result  
 }
 
-function getClock(dateStart, dateEnd){
+function getClock(dateStart, dateEnd, profileIds){
     const url = `https://reports.api.clockify.me/v1/workspaces/${process.env.WORKSPACE_ID}/reports/detailed`;
     const body = { 
-        "dateRangeEnd": dateEnd,
         "dateRangeStart": dateStart,
+        "dateRangeEnd": dateEnd,
         "detailedFilter": {},
+        "users": {
+            "ids": profileIds
+        }
         }
     const options = {
         method: 'post',
@@ -52,7 +61,7 @@ function getClock(dateStart, dateEnd){
     return fetch(url, options)
     .then(response => response.json())
     .then(data => {
-        let result = {}; 
+        let result = {};
         for (let i in data["timeentries"]){
             const matches = data["timeentries"][i]["description"].match(/#[\d]{1,6}/)
             if (matches) {
@@ -63,7 +72,8 @@ function getClock(dateStart, dateEnd){
                 let flag = true
                 for (let elem in result[id_issue]){
                     if (result[id_issue][elem]['name'] == data["timeentries"][i]["userName"]){
-                        result[id_issue][elem]['time'] += data["timeentries"][i]["timeInterval"]["duration"]
+                            if (data["timeentries"][i]["billable"]){
+                                result[id_issue][elem]['time'] += data["timeentries"][i]["timeInterval"]["duration"]}
                         flag = false
                     }
                 }
@@ -144,4 +154,32 @@ async function getComments(id_issue){
         if (comments[i].body) text[i] = (comments[i].body)
     }
     return text
+}
+
+function getProfile(email){
+    const url = `https://api.clockify.me/api/v1/workspaces/${process.env.WORKSPACE_ID}/users`;
+    const options = {
+        method: 'get',
+        headers: {
+            'x-api-key': process.env.CLOCKIFY_KEY,
+            'content-type': 'application/json'
+        },
+    }
+    return fetch(url, options)
+    .then(response => response.json())
+    .then(data => {
+        let result = {}
+        for (let i in data){
+            if (data[i].email  == email){
+                result = data[i]
+            }
+        }
+        return result
+    })
+    .catch(function (error) {
+        console.log(error);
+    })
+    .finally(function () {
+        // always executed
+    });
 }
